@@ -1,0 +1,10 @@
+lib/
+lib-es/
+coverage/
+node_modules/
+*.d.ts
+*.d.ts.map
+*.js
+*.js.map
+.idea/
+package-lock.json

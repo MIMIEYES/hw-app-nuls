@@ -1,0 +1,51 @@
+{
+  "name": "@ledgerhq/hw-app-nuls",
+  "version": "6.27.12",
+  "description": "Ledger Hardware Wallet Nuls Application API",
+  "keywords": [
+    "Ledger",
+    "LedgerWallet",
+    "Nuls",
+    "xlm",
+    "NanoS",
+    "Blue",
+    "Hardware Wallet"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LedgerHQ/ledger-live.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LedgerHQ/ledger-live/issues"
+  },
+  "homepage": "https://github.com/LedgerHQ/ledger-live/tree/develop/libs/ledgerjs/packages/hw-app-nuls",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "lib/Nuls.js",
+  "module": "lib-es/Nuls.js",
+  "types": "lib/Nuls.d.ts",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ledgerhq/hw-transport": "^6.28.1",
+    "base32.js": "^0.1.0",
+    "sha.js": "^2.3.6",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "@ledgerhq/hw-transport-mocker": "^6.27.12",
+    "@types/jest": "^29.4.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.14.4",
+    "ts-jest": "^28.0.5"
+  },
+  "scripts": {
+    "clean": "rimraf lib lib-es",
+    "build": "tsc && tsc -m ES6 --outDir lib-es",
+    "prewatch": "pnpm build",
+    "watch": "tsc --watch",
+    "lint": "eslint ./src --no-error-on-unmatched-pattern --ext .ts,.tsx",
+    "lint:fix": "pnpm lint --fix",
+    "test": "jest"
+  }
+}
