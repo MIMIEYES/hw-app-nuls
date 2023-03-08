@@ -18,7 +18,6 @@ import type Transport from "@ledgerhq/hw-transport";
 import {
   splitPath,
   foreach,
-  hash,
 } from "./utils";
 const CLA = 0xe0;
 const INS_GET_CONF = 0x04;
@@ -36,7 +35,7 @@ const SW_MULTI_OP = 0x6c25;
 const SW_NOT_ALLOWED = 0x6c66;
 const SW_UNSUPPORTED = 0x6d00;
 const SW_KEEP_ALIVE = 0x6e02;
-const TX_MAX_SIZE = 30000;
+const TX_MAX_SIZE = 10000;
 
 /**
  * Nuls API
@@ -125,12 +124,15 @@ export default class Nuls {
 
   /**
    * sign a Nuls transaction.
+   *
+   * @param path: the BIP32 path to sign the transaction on
    * @param rawTxHex the raw nuls transaction in hexadecimal to sign
    * @return an object with the signature
    * @example
-   * nuls.signTransaction(rawTxHex).then(o => o.signature)
+   * nuls.signTransaction("44'/60'/0'/0/0", rawTxHex).then(o => o.signature)
    */
   signTransaction(
+    path: string,
     rawTxHex: string
   ): Promise<{
     signature: string;
@@ -147,8 +149,13 @@ export default class Nuls {
 
     const apdus: Buffer[] = [];
     let response;
-    const bufferSize = 0;
+    const paths = splitPath(path);
+    const bufferSize = 1 + paths.length * 4;
     const buffer = Buffer.alloc(bufferSize);
+    buffer[0] = paths.length;
+    paths.forEach(function (element, index) {
+      buffer.writeUInt32BE(element, 1 + 4 * index);
+    });
     let chunkSize = APDU_MAX_SIZE - bufferSize;
 
     if (transaction.length <= chunkSize) {
@@ -171,7 +178,7 @@ export default class Nuls {
         apdus.push(chunk);
       }
     }
-
+    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_KEEP_ALIVE];
     return foreach(apdus, (data, i) =>
       this.transport
         .send(
@@ -179,7 +186,8 @@ export default class Nuls {
           INS_SIGN_TX,
           i,
           i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-          data
+          data,
+          statusWords
         )
         .then((apduResponse) => {
           const status = Buffer.from(
@@ -192,7 +200,8 @@ export default class Nuls {
                 INS_SIGN_TX,
                 i,
                 i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data);
+                data,
+                statusWords);
           } else {
             response = apduResponse;
           }
@@ -215,12 +224,15 @@ export default class Nuls {
 
   /**
    * sign a message.
-   * @param hash hash of the transaction to sign
+   *
+   * @param path: the BIP32 path to sign the transaction on
+   * @param messageHex message
    * @return an object with the signature
    * @example
    * nuls.signPersonalMessage(Buffer.from("test").toString("hex")).then(o => o.signature)
    */
   signPersonalMessage(
+      path: string,
       messageHex: string
   ): Promise<{
     signature: string;
@@ -228,8 +240,14 @@ export default class Nuls {
     const message = Buffer.from(messageHex, "hex");
     const apdus: Buffer[] = [];
     let response;
-    const bufferSize = 0;
+    const paths = splitPath(path);
+    const bufferSize = 1 + paths.length * 4 + 4;
     const buffer = Buffer.alloc(bufferSize);
+    buffer[0] = paths.length;
+    paths.forEach(function (element, index) {
+      buffer.writeUInt32BE(element, 1 + 4 * index);
+    });
+    buffer.writeUInt32BE(message.length, 1 + 4 * paths.length);
     let chunkSize = APDU_MAX_SIZE - bufferSize;
 
     if (message.length <= chunkSize) {
@@ -252,7 +270,7 @@ export default class Nuls {
         apdus.push(chunk);
       }
     }
-
+    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_KEEP_ALIVE];
     return foreach(apdus, (data, i) =>
         this.transport
             .send(
@@ -260,7 +278,8 @@ export default class Nuls {
                 INS_SIGN_MESSAGE,
                 i,
                 i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data
+                data,
+                statusWords
             )
             .then((apduResponse) => {
               const status = Buffer.from(
@@ -273,7 +292,8 @@ export default class Nuls {
                     INS_SIGN_MESSAGE,
                     i,
                     i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                    data);
+                    data,
+                    statusWords);
               } else {
                 response = apduResponse;
               }
@@ -294,32 +314,33 @@ export default class Nuls {
     });
   }
 
-  reSend(CLA: number, INS_SIGN_TX: number, p1: number, p2: number, data: Buffer): Promise<{
-    apduResponse: Buffer;
-  }> {
+  reSend(CLA: number, INS_SIGN_TX: number, p1: number, p2: number, data: Buffer, statusWords: number[]): Promise<Buffer> {
     return this.transport
         .send(
             CLA,
             INS_SIGN_TX,
             p1,
             p2,
-            data
+            data,
+            statusWords
         )
-        .then((apduResponse) => {
+        .then((value) => {
+          // console.log(CLA, INS_SIGN_TX, p1, p2, data.toString('hex'), 'send data');
+          // console.log(value.toString('hex'), 'resend value');
           const status = Buffer.from(
-              apduResponse.slice(apduResponse.length - 2)
+              value.subarray(value.length - 2)
           ).readUInt16BE(0);
+          // console.log(status === SW_OK, 'status is ok');
           // 判断响应状态是否为已接收，若不是，则重发
           if (status === SW_OK) {
-            return {
-              apduResponse : apduResponse,
-            }
+            return value
           } else {
             return this.reSend(CLA,
                 INS_SIGN_TX,
                 p1,
                 p2,
-                data);
+                data,
+                statusWords);
           }
         })
 
