@@ -92,7 +92,6 @@ export default class Nuls {
     paths.forEach((element, index) => {
       buffer.writeUInt32BE(element, 1 + 4 * index);
     });
-    console.log(buffer.toString('hex'), 'getPublicKey buffer');
     return this.transport
         .send(CLA, INS_GET_PK, boolDisplay ? 0x01 : 0x00, 0x00, buffer)
         .then((response) => {
@@ -178,7 +177,7 @@ export default class Nuls {
         apdus.push(chunk);
       }
     }
-    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_KEEP_ALIVE];
+    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_NOT_ALLOWED, SW_UNSUPPORTED, SW_KEEP_ALIVE];
     return foreach(apdus, (data, i) =>
       this.transport
         .send(
@@ -194,16 +193,10 @@ export default class Nuls {
             apduResponse.slice(apduResponse.length - 2)
           ).readUInt16BE(0);
 
-          if (status !== SW_OK) {
-            // 判断响应状态是否为已接收，若不是，则重发
-            response = this.reSend(CLA,
-                INS_SIGN_TX,
-                i,
-                i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data,
-                statusWords);
-          } else {
+          if (status === SW_OK) {
             response = apduResponse;
+          } else {
+            throw new Error("Transaction approval request was rejected");
           }
         })
     ).then(() => {
@@ -270,7 +263,7 @@ export default class Nuls {
         apdus.push(chunk);
       }
     }
-    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_KEEP_ALIVE];
+    let statusWords = [SW_OK, SW_CANCEL, SW_UNKNOWN_OP, SW_MULTI_OP, SW_NOT_ALLOWED, SW_UNSUPPORTED, SW_KEEP_ALIVE];
     return foreach(apdus, (data, i) =>
         this.transport
             .send(
@@ -286,16 +279,10 @@ export default class Nuls {
                   apduResponse.slice(apduResponse.length - 2)
               ).readUInt16BE(0);
 
-              if (status !== SW_OK) {
-                // 判断响应状态是否为已接收，若不是，则重发
-                response = this.reSend(CLA,
-                    INS_SIGN_MESSAGE,
-                    i,
-                    i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                    data,
-                    statusWords);
-              } else {
+              if (status === SW_OK) {
                 response = apduResponse;
+              } else {
+                throw new Error("Transaction approval request was rejected");
               }
             })
     ).then(() => {
@@ -312,38 +299,6 @@ export default class Nuls {
         throw new Error("Transaction approval request was rejected");
       }
     });
-  }
-
-  reSend(CLA: number, INS_SIGN_TX: number, p1: number, p2: number, data: Buffer, statusWords: number[]): Promise<Buffer> {
-    return this.transport
-        .send(
-            CLA,
-            INS_SIGN_TX,
-            p1,
-            p2,
-            data,
-            statusWords
-        )
-        .then((value) => {
-          // console.log(CLA, INS_SIGN_TX, p1, p2, data.toString('hex'), 'send data');
-          // console.log(value.toString('hex'), 'resend value');
-          const status = Buffer.from(
-              value.subarray(value.length - 2)
-          ).readUInt16BE(0);
-          // console.log(status === SW_OK, 'status is ok');
-          // 判断响应状态是否为已接收，若不是，则重发
-          if (status === SW_OK) {
-            return value
-          } else {
-            return this.reSend(CLA,
-                INS_SIGN_TX,
-                p1,
-                p2,
-                data,
-                statusWords);
-          }
-        })
-
   }
 
 }
