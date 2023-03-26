@@ -48,7 +48,7 @@ const TX_MAX_SIZE = 10000;
 export default class Nuls {
   transport: Transport;
 
-  constructor(transport: Transport, scrambleKey = "v0v") {
+  constructor(transport: Transport, scrambleKey = "nuls0nuls") {
     this.transport = transport;
     transport.decorateAppAPIMethods(
       this,
@@ -77,7 +77,7 @@ export default class Nuls {
    * @option boolDisplay optionally enable or not the display
    * @return an object with a publicKey, address
    * @example
-   * nuls.getPublicKey("44'/60'/0'/0/0").then(o => o.address)
+   * nuls.getPublicKey("44'/60'/0'/0/0", true).then(o => o.address)
    */
   getPublicKey(
     path: string,
@@ -222,7 +222,7 @@ export default class Nuls {
    * @param messageHex message
    * @return an object with the signature
    * @example
-   * nuls.signPersonalMessage(Buffer.from("test").toString("hex")).then(o => o.signature)
+   * nuls.signPersonalMessage("44'/60'/0'/0/0", Buffer.from("test").toString("hex")).then(o => o.signature)
    */
   signPersonalMessage(
       path: string,
