@@ -34,6 +34,7 @@ const SW_UNKNOWN_OP = 0x6c24;
 const SW_MULTI_OP = 0x6c25;
 const SW_NOT_ALLOWED = 0x6c66;
 const SW_UNSUPPORTED = 0x6d00;
+const SW_BLIND_SIGN = 0xB009;
 const SW_KEEP_ALIVE = 0x6e02;
 const TX_MAX_SIZE = 30000;
 
@@ -195,9 +196,17 @@ export default class Nuls {
 
           if (status === SW_OK) {
             response = apduResponse;
+          } else if (status === SW_BLIND_SIGN) {
+            throw new Error("Please enable Blind signing in the NULS app Settings");
           } else {
             throw new Error("Transaction approval request was rejected");
           }
+        })
+        .catch((e) => {
+          if (e && e.statusCode === SW_BLIND_SIGN) {
+            throw new Error("Please enable Blind signing in the NULS app Settings");
+          }
+          throw e;
         })
     ).then(() => {
       const status = Buffer.from(
@@ -209,6 +218,8 @@ export default class Nuls {
         return {
           signature: signature.toString("hex"),
         };
+      } else if (status === SW_BLIND_SIGN) {
+        throw new Error("Please enable Blind signing in the NULS app Settings");
       } else {
         throw new Error("Transaction approval request was rejected");
       }
